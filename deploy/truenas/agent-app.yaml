@@ -1,0 +1,34 @@
+# LANOT agent on TrueNAS SCALE as a custom app. Template: deploy/truenas/install-agent.sh
+# fills in the __PLACEHOLDERS__ and creates (or redeploys) the app.
+# The image is loaded locally (docker save | docker load), never pulled.
+# AGENT_TOKEN lives in __LANOT_DIR__/agent.env (root 600), not in the app config.
+services:
+  agent:
+    image: lanot-agent:dev
+    pull_policy: never
+    container_name: lanot-agent
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    privileged: true
+    pid: host
+    network_mode: host
+    read_only: true
+    tmpfs: [/tmp]
+    env_file: __LANOT_DIR__/agent.env
+    environment:
+      HOST_NAME: __HOST_NAME__
+      LANOT_URL: __LANOT_URL__
+      TZ: __TZ__
+      JOURNAL_DIR: /host/var/log/journal
+      ENABLE_ZFS: "1"
+      ENABLE_SMART: "1"
+      ENABLE_POWER: "0"
+      ENABLE_UNRAID: "0"
+    volumes:
+      - /:/host:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - __LANOT_DIR__/buffer:/buffer

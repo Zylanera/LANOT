@@ -1,0 +1,94 @@
+# LANOT on the monitor host: server, ntfy push server and the host's own agent.
+#
+#   cd /srv/lanot            # or wherever LANOT_DIR points
+#   docker compose up -d
+#
+# Expected layout under LANOT_DIR (default /srv/lanot):
+#   lanot.toml            network layout (copy of lanot.example.toml, edited)
+#   .env                  server secrets (copy of deploy/.env.example, mode 600)
+#   agent.env             AGENT_TOKEN of this host's own agent (copy of deploy/agent.env.example)
+#   data/                 SQLite database and known_hosts (created on first start)
+#   secrets/              investigator_key (optional, see README, step 5)
+#   ntfy/                 ntfy cache
+#   agent-buffer/         the agent's local queue
+#
+# Images are built locally (deploy/build-images.sh); nothing is pulled except ntfy.
+name: lanot
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  server:
+    image: lanot-server:dev
+    restart: unless-stopped
+    logging: *logging
+    network_mode: host          # pings and traceroute must see the real LAN
+    cap_add: [NET_RAW]
+    env_file: ${LANOT_DIR:-/srv/lanot}/.env
+    environment:
+      NTFY_URL: http://127.0.0.1:8081
+      OLLAMA_URL: http://127.0.0.1:11434
+      DB_PATH: /data/lanot.db
+      LANOT_CONFIG: /config/lanot.toml
+    volumes:
+      - ${LANOT_DIR:-/srv/lanot}/data:/data
+      - ${LANOT_DIR:-/srv/lanot}/lanot.toml:/config/lanot.toml:ro
+      - ${LANOT_DIR:-/srv/lanot}/secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/v1/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    restart: unless-stopped
+    logging: *logging
+    command: serve
+    ports:
+      - "8081:80"
+    environment:
+      NTFY_BASE_URL: ${NTFY_BASE_URL:-http://localhost:8081}
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+    volumes:
+      - ${LANOT_DIR:-/srv/lanot}/ntfy:/var/cache/ntfy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://localhost:80/v1/health | grep -q healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  agent:
+    image: lanot-agent:dev
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      server:
+        condition: service_healthy
+    # The agent reads the host: privileged for SMART and nsenter, host PID and
+    # network namespaces, the host root and the docker socket read-only.
+    privileged: true
+    pid: host
+    network_mode: host
+    read_only: true
+    tmpfs: [/tmp]
+    env_file: ${LANOT_DIR:-/srv/lanot}/agent.env
+    environment:
+      HOST_NAME: ${AGENT_HOST_NAME:-monitor}   # must match an id in lanot.toml
+      LANOT_URL: http://127.0.0.1:8080
+      TZ: ${TZ:-UTC}
+      JOURNAL_DIR: /host/var/log/journal
+      ENABLE_POWER: "1"
+      ENABLE_SMART: "1"
+      ENABLE_ZFS: "0"
+      ENABLE_UNRAID: "0"
+    volumes:
+      - /:/host:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${LANOT_DIR:-/srv/lanot}/agent-buffer:/buffer
