@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lanot-agent"
+version = "0.1.0"
+description = "LANOT agent: read-only collectors and shipper"
+# lanot-common is a local path package: pip install -e common -e agent
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = ["lanot-common", "pydantic>=2.6", "httpx"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["lanot_agent", "lanot_agent.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

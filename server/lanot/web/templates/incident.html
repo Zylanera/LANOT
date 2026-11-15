@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import marker, chip %}
+{% block content %}
+<div class="stack">
+  <section>
+    <p class="crumb"><a href="/incidents">&larr; All incidents</a></p>
+    <h1 class="title-with-marker">{{ marker(inc.status, "Resolved" if not inc.open else None) }} {{ inc.title }}</h1>
+    <p class="meta">{{ inc.head }}</p>
+    {% if saved %}<p class="note s-ok" role="status">{{ saved }}</p>{% endif %}
+    {% if error %}<p class="note s-bad" role="alert">{{ error }}</p>{% endif %}
+  </section>
+
+  {% set d = inc.diag %}
+  {% if d %}
+  <section class="band diagnosis">
+    {% if d.followup %}<p class="soft"><span class="chip">Follow-up</span> The investigator looked at this incident again because the picture changed.</p>{% endif %}
+    <h2>What happened</h2>
+    <p>{{ d.what_happened or d.summary }}</p>
+    <h2>Probable cause</h2>
+    <p>{{ d.cause or "The investigator could not determine a cause." }}</p>
+    <p class="conf">Confidence: {{ chip(inc.confidence) }}
+      {%- if inc.confidence != "certain" %} <span class="soft">assessment by the AI, not verified</span>{% endif %}</p>
+    <h2>What you could check</h2>
+    {% if d.suggestions %}
+    <ul class="bullets">{% for s in d.suggestions %}<li>{{ s }}</li>{% endfor %}</ul>
+    {% else %}
+    <p>The investigator made no suggestions.</p>
+    {% endif %}
+    <p class="soft small">Investigated by: {{ model }}{% if d.duration_s %}, in {{ d.duration_s|round|int }} s{% endif %}</p>
+  </section>
+  {% elif inc.open %}
+  <p>Investigating … The diagnosis appears here once it is done.</p>
+  {% else %}
+  <p>There is no AI diagnosis for this incident.</p>
+  {% endif %}
+
+  <details class="evidence">
+    <summary>Show evidence</summary>
+    {% if inc.detail %}<h3>What the rule saw</h3><p>{{ inc.detail }}</p>{% endif %}
+    {% if d and d.evidence %}
+    <h3>Evidence cited by the AI</h3>
+    <ul class="bullets">{% for e in d.evidence %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if facts %}
+    <h3>Collected facts</h3>
+    <pre class="facts" tabindex="0">{{ facts }}</pre>
+    {% endif %}
+  </details>
+
+  <section id="mute">
+    <h2>Mute</h2>
+    {% if muted %}
+    <p>This incident is muted. It does not send new notifications.</p>
+    <form method="post" action="/settings/mute/clear">
+      <input type="hidden" name="rule" value="{{ inc.rule }}">
+      <input type="hidden" name="key" value="{{ inc.key }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button type="submit" class="btn">Unmute</button>
+    </form>
+    {% else %}
+    <p class="soft">Is this on purpose, for example a server you switched off? Then pause its notifications.</p>
+    <form method="post" action="/settings/mute" class="form-row">
+      <input type="hidden" name="rule" value="{{ inc.rule }}">
+      <input type="hidden" name="key" value="{{ inc.key }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <div class="field">
+        <label for="duration">For how long?</label>
+        <select id="duration" name="duration">
+          {% for k, v in durations.items() %}<option value="{{ k }}"{% if k == "1d" %} selected{% endif %}>{{ v[1] }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn primary">Mute</button>
+    </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+  pool: boot-pool
+ state: ONLINE
+  scan: scrub repaired 0B in 00:01:00 with 0 errors on Sun Nov  1 03:45:00 2026
+config:
+
+	NAME        STATE     READ WRITE CKSUM
+	boot-pool   ONLINE       0     0     0
+	  sdc3      ONLINE       0     0     0
+
+errors: No known data errors
+
+  pool: tank
+ state: ONLINE
+  scan: scrub repaired 0B in 02:00:00 with 0 errors on Sun Nov  1 02:40:00 2026
+config:
+
+	NAME                                      STATE     READ WRITE CKSUM
+	tank                                      ONLINE       0     0     0
+	  mirror-0                                ONLINE       0     0     0
+	    00000000-0000-4000-8000-000000000001  ONLINE       0     0     0
+	    00000000-0000-4000-8000-000000000002  ONLINE       0     0     0
+
+errors: No known data errors
+
+  pool: backup
+ state: ONLINE
+  scan: scrub repaired 0B in 00:01:00 with 0 errors on Sun Nov  1 00:00:20 2026
+config:
+
+	NAME                                      STATE     READ WRITE CKSUM
+	backup                                    ONLINE       0     0     0
+	  mirror-0                                ONLINE       0     0     0
+	    00000000-0000-4000-8000-000000000003  ONLINE       0     0     0
+	    00000000-0000-4000-8000-000000000004  ONLINE       0     0     0
+
+errors: No known data errors

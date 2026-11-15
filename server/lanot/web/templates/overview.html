@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import incident_item, device_row, chain %}
+{% block content %}
+<div id="overview" class="stack" data-updated="{{ ov.updated }}" data-status="{{ ov.status }}">
+  <h1 class="sr-only">Overview</h1>
+  <section class="hero" aria-live="polite">
+    <p class="hero-text s-{{ ov.status }}" id="headline">{{ ov.headline }}</p>
+    <p class="hero-meta" id="updated">Last checked just now</p>
+  </section>
+
+  <section aria-label="Path to the internet" id="chain">{{ chain(ov.chain) }}</section>
+
+  <section aria-labelledby="h-devices">
+    <h2 id="h-devices">Devices</h2>
+    <ul class="rows-list" id="devices">
+      {% for t in ov.tiles if t.id not in ("internet", "router") %}{{ device_row(t) }}{% endfor %}
+    </ul>
+  </section>
+
+  {% set open_incs = ov.incidents|selectattr("open")|list %}
+  {% set recent = ov.incidents|rejectattr("open")|list %}
+  <section aria-labelledby="h-incidents">
+    <h2 id="h-incidents">Incidents</h2>
+    <ul class="timeline" id="incidents">
+      {% for i in open_incs %}{{ incident_item(i, summary=True) }}{% endfor %}
+    </ul>
+    <p class="empty" id="no-incidents"{% if open_incs %} hidden{% endif %}>No open incidents.</p>
+    <p class="subhead" id="recent-head"{% if not recent %} hidden{% endif %}>Recently resolved</p>
+    <ul class="timeline" id="recent">
+      {% for i in recent %}{{ incident_item(i) }}{% endfor %}
+    </ul>
+    <p><a href="/incidents">Show all incidents</a></p>
+  </section>
+</div>
+{% endblock %}

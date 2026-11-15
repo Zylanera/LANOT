@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, marker, incident_item %}
+{% block head %}<link rel="stylesheet" href="/static/uplot.min.css">{% endblock %}
+{% block content %}
+<div class="stack">
+  <section>
+    <p class="crumb"><a href="/devices">&larr; All devices</a></p>
+    <h1>{{ name }}</h1>
+    <p class="status-line">{{ marker(status) }} {{ reach }}</p>
+    {% if figures %}
+    <ul class="figures">
+      {% for label, value in figures %}<li><span class="fig-label">{{ label }}</span><span class="fig-value">{{ value }}</span></li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  {% if incs %}
+  <section>
+    <h2>Open incidents</h2>
+    <ul class="timeline">{% for i in incs %}{{ incident_item(i, summary=True) }}{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if fs %}
+  <section>
+    <h2>Disks</h2>
+    <ul class="meters">
+      {% for f in fs %}
+      <li class="s-{{ f.status }}">
+        <span class="meter-label"><span class="row-name">{{ f.mount }}</span><span class="num">{{ f.pct|round|int }}% full ({{ f.used }} of {{ f.total }})</span></span>
+        <span class="meter" aria-hidden="true"><span style="width: {{ [f.pct, 100]|min|round(1) }}%"></span></span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if agent %}
+  <section id="history">
+    <div class="section-head">
+      <h2>History</h2>
+      <nav class="range" aria-label="Time span">
+        <a href="?range=24h#history"{% if range == "24h" %} aria-current="true"{% endif %}>24 hours</a>
+        <a href="?range=7d#history"{% if range == "7d" %} aria-current="true"{% endif %}>7 days</a>
+      </nav>
+    </div>
+    <div id="charts" data-host="{{ host }}" data-range="{{ range }}">
+      {% for id, label in [("cpu", "CPU load (%)"), ("mem", "Memory used (%)"), ("temps", "Temperatures (°C)"), ("disks", "Disks used (%)")] %}
+      <figure class="chart" data-chart="{{ id }}">
+        <figcaption>{{ label }}</figcaption>
+        <div class="chart-area"></div>
+        <p class="chart-sum soft">Loading …</p>
+      </figure>
+      {% endfor %}
+      <noscript><p>The history charts need JavaScript.</p></noscript>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if s %}
+  <section class="details-group">
+    <details class="fold"{% if open_containers %} open{% endif %}>
+      <summary>Containers <span class="soft">({{ containers|length }}{% if open_containers %}, problem{% else %}, all good{% endif %})</span></summary>
+      {% if containers %}
+      <ul class="rows-list">
+        {% for c in containers %}
+        <li class="row static s-{{ c.status }}">{{ badge(c.status, c.word) }}<span class="row-name">{{ c.name }}{% if c.important %} <span class="chip">important</span>{% endif %}</span>
+          <span class="row-text">{% if c.restarts %}{{ c.restarts }} restarts{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p>No containers.</p>{% endif %}
+    </details>
+    {% if s.pools %}
+    <details class="fold"{% if open_pools %} open{% endif %}>
+      <summary>Storage pools <span class="soft">({{ "problem" if open_pools else "all good" }})</span></summary>
+      <ul class="rows-list">
+        {% for p in s.pools %}
+        <li class="row static">{{ badge("ok" if p.health == "ONLINE" else "bad", p.health) }}<span class="row-name">{{ p.name }}</span><span class="row-text num">{{ p.cap_pct|round|int }}% full</span></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% if s.disks %}
+    <details class="fold"{% if open_disks %} open{% endif %}>
+      <summary>Hard disks (SMART) <span class="soft">({{ "problem" if open_disks else "all good" }})</span></summary>
+      <ul class="rows-list">
+        {% for d in s.disks %}
+        <li class="row static">{{ badge("ok" if d.smart_passed else "bad", "OK" if d.smart_passed else "failed") }}<span class="row-name">{{ d.dev }}</span><span class="row-text">{{ d.model }}</span></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% if s.array %}<p>Unraid array: {{ s.array }}</p>{% endif %}
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Recent errors in the log</h2>
+    {% if errors %}
+    <ol class="loglist">
+      {% for r in errors %}
+      <li><span class="log-meta"><span class="num">{{ r.when }}</span>, {{ r.source }}, {{ r.sev }}</span><code class="log-msg">{{ r.message }}</code></li>
+      {% endfor %}
+    </ol>
+    <p><a href="/logs?host={{ host }}&amp;severity=error">Search all errors of {{ name }}</a></p>
+    {% else %}
+    <p class="empty">No errors in the last 7 days.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}{% if agent %}<script src="/static/uplot.min.js" defer></script>{% endif %}{% endblock %}

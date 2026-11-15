@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stack">
+<h1>Settings</h1>
+{% if saved %}<p class="note s-ok" role="status">{{ saved }}</p>{% endif %}
+{% if error %}<p class="note s-bad" role="alert">{{ error }}</p>{% endif %}
+
+<section class="band" id="mute">
+  <h2>Mute</h2>
+  <p class="soft">For things that are off on purpose (for example a test server). Muted things create no incidents and no notifications.</p>
+  {% if mutes %}
+  <ul class="rows-list">
+    {% for mu in mutes %}
+    <li class="row static">
+      <span class="row-name">{{ mu.label }} <span class="soft">{{ mu.until_text }}</span></span>
+      <form method="post" action="/settings/mute/clear" class="row-side">
+        <input type="hidden" name="rule" value="{{ mu.rule }}">
+        <input type="hidden" name="key" value="{{ mu.key }}">
+        <button type="submit" class="btn">Unmute<span class="sr-only">: {{ mu.label }}</span></button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Nothing is muted right now.</p>
+  {% endif %}
+  <form method="post" action="/settings/mute" class="form-grid">
+    <div class="field wide">
+      <label for="target">What should be muted?</label>
+      <select id="target" name="target" required>
+        {% for value, label in mute_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="duration">For how long?</label>
+      <select id="duration" name="duration">
+        {% for k, v in durations.items() %}<option value="{{ k }}"{% if k == "1d" %} selected{% endif %}>{{ v[1] }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field actions"><button type="submit" class="btn primary">Mute</button></div>
+  </form>
+</section>
+
+<section class="band" id="services">
+  <h2>Important services</h2>
+  <p class="soft">LANOT checks these services every 10 seconds. If one does not answer for 30 seconds, you get a notification.</p>
+  {% if services %}
+  <ul class="rows-list">
+    {% for s in services %}
+    <li class="row static">
+      <span class="row-name"><strong>{{ s.name }}</strong> <span class="soft">{{ "Web page" if s.kind == "http" else "Port" }} {{ s.address }}{% if s.port %}:{{ s.port }}{% endif %}</span></span>
+      <form method="post" action="/settings/services/delete" class="row-side">
+        <input type="hidden" name="name" value="{{ s.name }}">
+        <button type="submit" class="btn">Remove<span class="sr-only">: {{ s.name }}</span></button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No important services yet.</p>
+  {% endif %}
+  <h3>Add a service</h3>
+  <form method="post" action="/settings/services" class="form-grid">
+    <div class="field">
+      <label for="s-name">Name</label>
+      <input id="s-name" name="name" required maxlength="40" pattern="[a-z0-9][a-z0-9_\-]*" placeholder="nextcloud" aria-describedby="s-name-hint">
+      <span class="hint" id="s-name-hint">lowercase letters, digits, - and _</span>
+    </div>
+    <div class="field">
+      <label for="s-kind">Kind</label>
+      <select id="s-kind" name="kind">
+        <option value="tcp">Port (TCP)</option>
+        <option value="http">Web page (HTTP)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="s-address">Address</label>
+      <input id="s-address" name="address" required maxlength="253" placeholder="192.0.2.31">
+    </div>
+    <div class="field">
+      <label for="s-port">Port</label>
+      <input id="s-port" name="port" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="443">
+    </div>
+    <div class="field actions"><button type="submit" class="btn primary">Add</button></div>
+  </form>
+</section>
+
+<section class="band" id="containers">
+  <h2>Important containers</h2>
+  <p class="soft">Only ticked containers send a notification when they crash, turn unhealthy or keep restarting.</p>
+  {% if containers %}
+  <form method="post" action="/settings/containers">
+    <input type="hidden" name="sent" value="1">
+    <fieldset class="checks">
+      <legend class="sr-only">Important containers</legend>
+      {% for c in containers %}
+      <label class="check"><input type="checkbox" name="c" value="{{ c }}"{% if c in important %} checked{% endif %}> <span>{{ c }}</span></label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit" class="btn primary">Save</button>
+  </form>
+  {% else %}
+  <p>No containers known yet. They show up here once the agents send data.</p>
+  {% endif %}
+</section>
+
+<section class="band" id="thresholds">
+  <h2>Thresholds</h2>
+  <form method="post" action="/settings/thresholds" class="form-grid">
+    {% for key, f in fields.items() %}
+    <div class="field">
+      <label for="t-{{ key }}">{{ f[0] }} ({{ f[1] }})</label>
+      <input id="t-{{ key }}" name="{{ key }}" type="number" step="1" min="{{ f[2]|int }}" max="{{ f[3]|int }}" value="{{ thresholds[key]|round|int }}" required aria-describedby="t-{{ key }}-hint">
+      <span class="hint" id="t-{{ key }}-hint">allowed {{ f[2]|int }} to {{ f[3]|int }}</span>
+    </div>
+    {% endfor %}
+    <div class="field actions"><button type="submit" class="btn primary">Save</button></div>
+  </form>
+</section>
+</div>
+{% endblock %}

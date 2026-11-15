@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge %}
+{% block content %}
+<div class="stack">
+<h1>Log search</h1>
+<form method="get" action="/logs" class="band form-grid" role="search">
+  <div class="field wide">
+    <label for="q">Search terms</label>
+    <input id="q" name="q" type="search" value="{{ q }}" maxlength="200" placeholder="for example: error, disk, nextcloud">
+  </div>
+  <div class="field">
+    <label for="host">Device</label>
+    <select id="host" name="host">
+      <option value="">all devices</option>
+      {% for h, n in hosts %}<option value="{{ h }}"{% if h == host %} selected{% endif %}>{{ n }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="range">Time span</label>
+    <select id="range" name="range">
+      {% for k, v in ranges.items() %}<option value="{{ k }}"{% if k == range %} selected{% endif %}>{{ v[1] }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="severity">Severity</label>
+    <select id="severity" name="severity">
+      {% for k, v in severities.items() %}<option value="{{ k }}"{% if k == severity %} selected{% endif %}>{{ v[1] }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field actions"><button type="submit" class="btn primary">Search</button></div>
+</form>
+
+<h2>{% if lines|length == 200 %}The newest 200 matches{% else %}{{ lines|length }} {{ "match" if lines|length == 1 else "matches" }}{% endif %}</h2>
+{% if lines %}
+<ol class="loglist">
+  {% for r in lines %}
+  <li class="s-{{ r.status }}">
+    <span class="log-meta">{{ badge(r.status, r.sev) }} <span class="num">{{ r.when }}</span>, <a href="/device/{{ r.host }}">{{ r.name }}</a>, {{ r.source }}</span>
+    <code class="log-msg">{{ r.message }}</code>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="empty">Nothing found. Try a longer time span or a shorter search term.</p>
+{% endif %}
+</div>
+{% endblock %}

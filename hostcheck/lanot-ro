@@ -1,0 +1,275 @@
+#!/bin/bash
+# lanot-ro - forced-command allowlist for the LANOT investigator SSH key.
+#
+# Install as:  command="/path/lanot-ro",no-pty,no-port-forwarding,... ssh-ed25519 ...
+# Reads $SSH_ORIGINAL_COMMAND (or its single argument, see below), splits on plain spaces (no quoting support),
+# validates every token, matches exactly one allowed read-only form and execs
+# it via an argv array. No eval, no sh -c, no unquoted expansion of input
+# (except the single space-split below, with globbing disabled).
+# Anything else: "denied: <reason>" on stderr, exit 2.
+# LANOT_RO_DRYRUN=1 prints the final argv (one element per line) instead of executing.
+#
+# Refusals exit 2 with stderr prefix "denied:". Callers must key on that
+# prefix, because the executed tools themselves also use exit 2.
+set -u
+set -f
+unset BASH_ENV ENV LD_PRELOAD LD_LIBRARY_PATH CDPATH GLOBIGNORE
+export LC_ALL=C
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+IFS=' '
+
+deny() { printf 'denied: %s\n' "$1" >&2; exit 2; }
+
+# Command source: $SSH_ORIGINAL_COMMAND, or (argv mode, for sudo with env_reset)
+# exactly one argument when SSH_ORIGINAL_COMMAND is unset/empty:
+#   command="sudo -n /path/lanot-ro \"$SSH_ORIGINAL_COMMAND\"",no-pty,...
+# Both sources at once, or more than one argument: refused.
+(( $# <= 1 )) || deny "too many arguments"
+if [[ -n "${SSH_ORIGINAL_COMMAND-}" ]]; then
+  (( $# == 0 )) || deny "command given twice"
+  cmd="$SSH_ORIGINAL_COMMAND"
+else
+  cmd="${1-}"
+fi
+[[ -n "$cmd" ]] || deny "empty command"
+(( ${#cmd} <= 512 )) || deny "command too long"
+# Only the token charset plus plain space: rejects newline, tab, quotes, ; & | $ ` < > \ * etc.
+[[ "$cmd" =~ ^[A-Za-z0-9._:/@=+,\ -]+$ ]] || deny "forbidden characters"
+
+# shellcheck disable=SC2206  # intentional split on single spaces, globbing is off
+t=($cmd)
+n=${#t[@]}
+(( n >= 1 )) || deny "empty command"
+(( n <= 12 )) || deny "too many tokens"
+for tok in "${t[@]}"; do
+  [[ "$tok" =~ ^[A-Za-z0-9._:/@=+,-]{1,128}$ ]] || deny "invalid token"
+done
+
+# ---- validators (value tokens must never start with '-') ----
+is_num() { # N in 1..$2 (default 5000)
+  [[ "$1" =~ ^[1-9][0-9]{0,3}$ ]] && (( 10#$1 <= ${2:-5000} ))
+}
+is_name() { # UNIT / NAME / POOL
+  [[ "$1" =~ ^[A-Za-z0-9_][A-Za-z0-9._:@-]*$ ]] && [[ "$1" != *..* ]]
+}
+is_host() {
+  [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ ]] && [[ "$1" != *..* ]]
+}
+is_time() {
+  [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9.:+_-]*$ ]]
+}
+is_levels() {
+  local l rest="$1" ok=1
+  [[ "$rest" =~ ^[a-z,]+$ ]] || return 1
+  local -a parts
+  IFS=',' read -r -a parts <<<"$rest"
+  (( ${#parts[@]} >= 1 )) || return 1
+  [[ "$rest" != *,,* && "$rest" != ,* && "$rest" != *, ]] || return 1
+  for l in "${parts[@]}"; do
+    case "$l" in
+      emerg|alert|crit|err|warn|notice|info|debug) ;;
+      *) ok=0 ;;
+    esac
+  done
+  (( ok == 1 ))
+}
+
+argv=()
+cmdname="${t[0]}"
+case "$cmdname" in
+  journalctl)
+    declare -A seen=()
+    have_n=0
+    i=1
+    while (( i < n )); do
+      o="${t[i]}"
+      [[ -z "${seen[$o]-}" ]] || deny "option given twice: $o"
+      seen[$o]=1
+      case "$o" in
+        -k|-b) argv+=("$o"); i=$((i+1)) ;;
+        -u)
+          (( i+1 < n )) && is_name "${t[i+1]}" || deny "journalctl -u: invalid unit"
+          argv+=(-u "${t[i+1]}"); i=$((i+2)) ;;
+        -p)
+          (( i+1 < n )) && [[ "${t[i+1]}" =~ ^[0-7]$ ]] || deny "journalctl -p: 0-7 expected"
+          argv+=(-p "${t[i+1]}"); i=$((i+2)) ;;
+        --since|--until)
+          (( i+1 < n )) && is_time "${t[i+1]}" || deny "journalctl $o: invalid time"
+          argv+=("$o" "${t[i+1]}"); i=$((i+2)) ;;
+        -n)
+          (( i+1 < n )) && is_num "${t[i+1]}" || deny "journalctl -n: 1-5000 expected"
+          argv+=(-n "${t[i+1]}"); have_n=1; i=$((i+2)) ;;
+        *) deny "journalctl: option not allowed: $o" ;;
+      esac
+    done
+    (( have_n == 1 )) || argv+=(-n 500)
+    argv=(journalctl "${argv[@]}" --no-pager)
+    ;;
+
+  dmesg)
+    declare -A seen=()
+    i=1
+    while (( i < n )); do
+      o="${t[i]}"
+      [[ -z "${seen[${o%%=*}]-}" ]] || deny "option given twice"
+      case "$o" in
+        -T) seen[-T]=1; argv+=(-T) ;;
+        --level=*)
+          seen[--level]=1
+          is_levels "${o#--level=}" || deny "dmesg: invalid levels"
+          argv+=("$o") ;;
+        *) deny "dmesg: option not allowed: $o" ;;
+      esac
+      i=$((i+1))
+    done
+    argv=(dmesg "${argv[@]}")
+    ;;
+
+  docker)
+    (( n >= 2 )) || deny "docker: subcommand missing"
+    case "${t[1]}" in
+      ps)
+        if (( n == 2 )); then argv=(docker ps)
+        elif (( n == 3 )) && [[ "${t[2]}" == "-a" ]]; then argv=(docker ps -a)
+        else deny "docker ps: only -a allowed"; fi ;;
+      inspect)
+        (( n == 3 )) && is_name "${t[2]}" || deny "docker inspect NAME expected"
+        # Fixed template, never from input: no Env/Cmd/Args/Labels (secrets).
+        argv=(docker inspect --type container --format '{{json .State}} {{.RestartCount}} {{.Config.Image}} {{json .HostConfig.RestartPolicy}} {{range .Mounts}}{{.Source}}:{{.Destination}} {{end}}' "${t[2]}") ;;
+      stats)
+        (( n == 3 )) && [[ "${t[2]}" == "--no-stream" ]] || deny "docker stats --no-stream expected"
+        argv=(docker stats --no-stream) ;;
+      logs)
+        declare -A seen=()
+        tail_n=200; since=""
+        i=2
+        while (( i < n - 1 )); do
+          o="${t[i]}"
+          [[ -z "${seen[$o]-}" ]] || deny "option given twice: $o"
+          seen[$o]=1
+          case "$o" in
+            --tail)
+              is_num "${t[i+1]}" || deny "docker logs --tail: 1-5000 expected"
+              tail_n="${t[i+1]}"; i=$((i+2)) ;;
+            --since)
+              is_time "${t[i+1]}" || deny "docker logs --since: invalid time"
+              since="${t[i+1]}"; i=$((i+2)) ;;
+            *) deny "docker logs: option not allowed: $o" ;;
+          esac
+        done
+        (( i == n - 1 )) || deny "docker logs: NAME expected at the end"
+        is_name "${t[i]}" || deny "docker logs: invalid NAME"
+        argv=(docker logs --tail "$tail_n")
+        [[ -z "$since" ]] || argv+=(--since "$since")
+        argv+=("${t[i]}") ;;
+      *) deny "docker: subcommand not allowed" ;;
+    esac
+    ;;
+
+  zpool)
+    (( n >= 2 )) || deny "zpool: subcommand missing"
+    case "${t[1]}" in
+      list) (( n == 2 )) || deny "zpool list: no arguments"; argv=(zpool list) ;;
+      status)
+        argv=(zpool status)
+        i=2
+        if (( i < n )) && [[ "${t[i]}" == "-v" ]]; then argv+=(-v); i=$((i+1)); fi
+        if (( i < n )); then
+          is_name "${t[i]}" || deny "zpool status: invalid POOL"
+          argv+=("${t[i]}"); i=$((i+1))
+        fi
+        (( i == n )) || deny "zpool status: extra arguments" ;;
+      *) deny "zpool: subcommand not allowed" ;;
+    esac
+    ;;
+
+  zfs)
+    (( n == 2 )) && [[ "${t[1]}" == "list" ]] || deny "only 'zfs list' allowed"
+    argv=(zfs list)
+    ;;
+
+  smartctl)
+    dev=""
+    case "$n" in
+      3) case "${t[1]}" in -a|-H|-i) argv=(smartctl "${t[1]}") ;; *) deny "smartctl: option not allowed" ;; esac
+         dev="${t[2]}" ;;
+      4) [[ "${t[1]}" == "-j" && "${t[2]}" == "-a" ]] || deny "smartctl: option not allowed"
+         argv=(smartctl -j -a); dev="${t[3]}" ;;
+      *) deny "smartctl: invalid arguments" ;;
+    esac
+    [[ "$dev" =~ ^/dev/(sd[a-z]{1,2}|nvme[0-9]+(n[0-9]+)?)$ ]] || deny "smartctl: invalid device"
+    argv+=(-n standby "$dev")
+    ;;
+
+  df)  (( n == 2 )) && [[ "${t[1]}" == "-h" ]] || deny "only 'df -h' allowed"; argv=(df -h) ;;
+  free) (( n == 2 )) && [[ "${t[1]}" == "-m" ]] || deny "only 'free -m' allowed"; argv=(free -m) ;;
+  uptime) (( n == 1 )) || deny "uptime: no arguments"; argv=(uptime) ;;
+  sensors) (( n == 1 )) || deny "sensors: no arguments"; argv=(sensors) ;;
+  lsblk) (( n == 1 )) || deny "lsblk: no arguments"; argv=(lsblk) ;;
+
+  ip)
+    (( n == 2 )) || deny "ip: exactly one argument"
+    case "${t[1]}" in addr|route|link) argv=(ip "${t[1]}") ;; *) deny "ip: only addr|route|link" ;; esac
+    ;;
+
+  ss)
+    (( n == 2 )) && [[ "${t[1]}" == "-tulpn" ]] || deny "only 'ss -tulpn' allowed"
+    argv=(ss -tulpn)
+    ;;
+
+  systemctl)
+    if (( n == 3 )) && [[ "${t[1]}" == "--failed" && "${t[2]}" == "--no-pager" ]]; then
+      argv=(systemctl --failed --no-pager)
+    elif (( n == 4 )) && [[ "${t[1]}" == "status" && "${t[3]}" == "--no-pager" ]] && is_name "${t[2]}"; then
+      argv=(systemctl status "${t[2]}" --no-pager)
+    else
+      deny "systemctl: form not allowed"
+    fi
+    ;;
+
+  ping)
+    (( n == 4 )) && [[ "${t[1]}" == "-c" ]] || deny "ping: only 'ping -c N HOST'"
+    is_num "${t[2]}" 5 || deny "ping: N 1-5 expected"
+    is_host "${t[3]}" || deny "ping: invalid HOST"
+    argv=(ping -c "${t[2]}" -W 2 "${t[3]}")
+    ;;
+
+  traceroute)
+    (( n == 5 )) && [[ "${t[1]}" == "-n" && "${t[2]}" == "-m" ]] || deny "traceroute: only '-n -m N HOST'"
+    is_num "${t[3]}" 20 || deny "traceroute: N 1-20 expected"
+    is_host "${t[4]}" || deny "traceroute: invalid HOST"
+    argv=(traceroute -n -m "${t[3]}" -w 2 "${t[4]}")
+    ;;
+
+  getent)
+    (( n == 3 )) && [[ "${t[1]}" == "hosts" ]] || deny "only 'getent hosts HOST' allowed"
+    is_host "${t[2]}" || deny "getent: invalid HOST"
+    argv=(getent hosts "${t[2]}")
+    ;;
+
+  tail)
+    (( n == 4 )) && [[ "${t[1]}" == "-n" ]] || deny "tail: only 'tail -n N PATH'"
+    is_num "${t[2]}" || deny "tail: N 1-5000 expected"
+    case "${t[3]}" in
+      /var/log/syslog|/var/log/docker.log|/var/log/messages) ;;
+      *) deny "tail: path not allowed" ;;
+    esac
+    argv=(tail -n "${t[2]}" "${t[3]}")
+    ;;
+
+  cat)
+    (( n == 2 )) || deny "cat: exactly one path"
+    case "${t[1]}" in
+      /proc/mdstat|/var/local/emhttp/disks.ini) argv=(cat "${t[1]}") ;;
+      *) deny "cat: path not allowed" ;;
+    esac
+    ;;
+
+  *) deny "command not allowed" ;;
+esac
+
+if [[ "${LANOT_RO_DRYRUN-}" == "1" ]]; then
+  printf '%s\n' "${argv[@]}"
+  exit 0
+fi
+exec env -i PATH="$PATH" LC_ALL=C "${argv[@]}"

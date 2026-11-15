@@ -1,0 +1,10 @@
+{
+ "Name": "/jellyfin",
+ "RestartCount": 0,
+ "State": {
+  "Status": "running",
+  "Health": {
+   "Status": "unhealthy"
+  }
+ }
+}

@@ -1,0 +1,14 @@
+.git
+.github
+docs
+deploy
+hostcheck
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+**/tests
+.venv
+.env
+*.env
+lanot.toml
+*.db

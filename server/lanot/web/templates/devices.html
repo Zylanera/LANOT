@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "_macros.html" import device_row %}
+{% block content %}
+<div class="stack">
+  <section>
+    <h1>Devices</h1>
+    <p class="lead">Open a device for its history, containers and recent errors.</p>
+  </section>
+  <ul class="rows-list">
+    {% for t in ov.tiles if t.id not in ("internet", "router", "other") %}{{ device_row(t) }}{% endfor %}
+  </ul>
+</div>
+{% endblock %}

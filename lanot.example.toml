@@ -1,0 +1,88 @@
+# LANOT configuration: the layout of your network.
+#
+# Copy this file to lanot.toml next to compose.yml and edit it. The server reads
+# it at start (path: LANOT_CONFIG, default /config/lanot.toml); restart the
+# server after a change. Secrets do not belong here: tokens, passwords and API
+# keys go into the .env file.
+#
+# The addresses below come from 192.0.2.0/24, a range reserved for
+# documentation. Replace them with your own.
+
+[general]
+# Time zone for the dashboard, the daily summary and the FritzBox event log.
+timezone = "UTC"
+# How you reach the dashboard. Used for links in push notifications and, unless
+# allowed_hosts is set, as the accepted Host header for dashboard forms.
+dashboard_url = "http://192.0.2.24:8080"
+# id of the host that runs LANOT itself (optional). Its own pings are not used
+# to judge whether the LAN works.
+monitor_host = "monitor"
+# Local hour of the daily summary push.
+daily_summary_hour = 8
+# Host headers accepted for form posts (DNS rebinding guard). Leave it out to
+# use the host of dashboard_url plus localhost:8080 and 127.0.0.1:8080.
+# allowed_hosts = ["192.0.2.24:8080", "monitor.lan:8080"]
+
+[router]
+# "fritzbox" enables TR-064 polling (line state, public IP, event log) when
+# tr064 = true and FRITZ_USER / FRITZ_PASSWORD are set in .env.
+# "generic" only pings the router and asks its DNS server.
+type = "fritzbox"
+host = "192.168.178.1"
+display_name = "FritzBox"
+tr064 = true
+
+[internet]
+# The internet counts as down when all of these stop answering ping.
+ping_targets = [
+  { name = "cloudflare", address = "1.1.1.1" },
+  { name = "google", address = "8.8.8.8" },
+]
+# External DNS server and the name it is asked for.
+dns_server = "1.1.1.1"
+dns_query = "example.com"
+# Also check the router's own DNS server.
+check_router_dns = true
+
+# One [[hosts]] block per device.
+#   id                 lowercase letters, digits, - and _; the agent uses it as HOST_NAME
+#   display_name       shown in the dashboard and in notifications
+#   address            IP address or host name, pinged every 10 seconds
+#   role               "unraid" | "truenas" | "linux" | "ping-only"
+#   agent              runs a LANOT agent (default: true, false for ping-only)
+#   investigator       the investigator may run read-only commands over SSH (default: false)
+#   investigator_user  SSH user for that (default: root on Unraid, lanot elsewhere)
+#   has_battery        laptop or UPS-backed host: alarm when it runs on battery
+
+[[hosts]]
+id = "nas"
+display_name = "NAS"
+address = "192.0.2.30"
+role = "truenas"
+agent = true
+investigator = true
+investigator_user = "lanot"
+
+[[hosts]]
+id = "docker-host"
+display_name = "Docker host"
+address = "192.0.2.31"
+role = "unraid"
+agent = true
+investigator = true
+investigator_user = "root"
+
+[[hosts]]
+id = "monitor"
+display_name = "Monitor"
+address = "192.0.2.24"
+role = "linux"
+agent = true
+investigator = true
+has_battery = true
+
+[[hosts]]
+id = "printer"
+display_name = "Printer"
+address = "192.0.2.32"
+role = "ping-only"

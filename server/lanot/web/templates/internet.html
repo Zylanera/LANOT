@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_macros.html" import marker %}
+{% block content %}
+<div class="stack">
+  <section>
+    <h1>Internet history</h1>
+    <p class="status-line">{{ marker("bad" if open_now else "ok") }} {{ "The internet is down right now" if open_now else "The internet is up" }}</p>
+    <ul class="figures">
+      <li><span class="fig-label">Outages in 30 days</span><span class="fig-value">{{ total }}</span></li>
+      <li><span class="fig-label">Total downtime</span><span class="fig-value">{{ total_time if total else "none" }}</span></li>
+      {% if fritz and fritz.downstream_kbps %}<li><span class="fig-label">Line</span><span class="fig-value">{{ fritz.downstream_kbps // 1000 }}/{{ (fritz.upstream_kbps or 0) // 1000 }} Mbit/s</span></li>{% endif %}
+    </ul>
+    {% if fritz and fritz.external_ip %}
+    <details class="mini">
+      <summary>Details</summary>
+      <p>Public IP address: <span class="num">{{ fritz.external_ip }}</span></p>
+    </details>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="h-days">
+    <h2 id="h-days">Downtime per day</h2>
+    <p class="soft">The last 30 days, today on the far right.</p>
+    <ol class="bars-30">
+      {% for d in days %}
+      <li class="daybar{% if d.count %} has{% endif %}">
+        <span class="bar" style="--h: {{ d.pct }}%" aria-hidden="true"></span>
+        <span class="day">{{ d.label }}</span>
+        <span class="sr-only">: {{ d.text }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section aria-labelledby="h-each">
+    <h2 id="h-each">Every outage</h2>
+    {% if outages %}
+    <ul class="timeline">
+      {% for o in outages %}
+      <li>
+        <a class="tl s-{{ o.status }}" href="/incident/{{ o.id }}">
+          <span class="tl-title">{{ marker(o.status, "ongoing" if o.open else "Resolved") }} <span class="tl-name">Cause: <span class="who">{{ o.who }}</span></span></span>
+          <span class="tl-sub">{{ o.line }}{% if o.times > 1 %}, down {{ o.times }} times{% endif %}</span>
+          <span class="tl-ai">{{ o.who_text }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">No internet outages in the last 30 days.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

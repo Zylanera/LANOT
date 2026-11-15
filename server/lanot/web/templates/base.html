@@ -1,0 +1,58 @@
+{% from "_macros.html" import icon %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{{ title }} - LANOT</title>
+  <link rel="stylesheet" href="/static/app.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header class="top">
+    {% set links = [("overview", "/", "Overview"), ("incidents", "/incidents", "Incidents"),
+                    ("internet", "/internet", "Internet"), ("devices", "/devices", "Devices"),
+                    ("logs", "/logs", "Logs"), ("settings", "/settings", "Settings")] %}
+    <div class="wrap top-inner">
+      <a class="brand" href="/">LANOT</a>
+      {# wide screens: inline links #}
+      <nav class="nav-wide" aria-label="Main menu">
+        <ul class="nav">
+          {% for key, href, label in links %}
+          <li><a href="{{ href }}"{% if nav == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+          {% endfor %}
+        </ul>
+      </nav>
+      {# narrow screens: a menu button; <details> keeps it working without JS #}
+      <details class="menu" id="menu">
+        <summary class="menu-btn" aria-controls="menu-panel" aria-expanded="false">
+          <svg class="bars" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6.5h16M4 12h16M4 17.5h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span>Menu</span>
+        </summary>
+        <nav class="menu-panel" id="menu-panel" aria-label="Main menu">
+          <ul>
+            {% for key, href, label in links %}
+            <li><a href="{{ href }}"{% if nav == key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+            {% endfor %}
+          </ul>
+        </nav>
+      </details>
+    </div>
+  </header>
+  <main id="content" class="wrap" tabindex="-1">
+    {% block content %}
+    <h1>{{ title }}</h1>
+    <p>{{ missing }}</p>
+    <p><a href="/">Back to the overview</a></p>
+    {% endblock %}
+  </main>
+  {# icons for the page script; cloned, never built from strings #}
+  {% for s in ["ok", "warn", "bad", "unknown", "muted"] %}
+  <template id="ico-{{ s }}">{{ icon(s) }}</template>
+  {% endfor %}
+  <script src="/static/app.js" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

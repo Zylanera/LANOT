@@ -1,0 +1,41 @@
+# secrets and local config
+.env
+*.env
+!*.env.example
+!.env.example
+lanot.toml
+secrets/
+*_key
+*_key.pub
+id_*
+*.pem
+*.key
+
+# data
+*.db
+*.db-wal
+*.db-shm
+data/
+buffer/
+agent-buffer/
+queue/
+known_hosts
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

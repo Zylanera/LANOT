@@ -1,0 +1,56 @@
+[
+ {
+  "Id": "0000000000000000000000000000000000000000000000000000000000000001",
+  "Names": [
+   "/jellyfin"
+  ],
+  "Image": "jellyfin/jellyfin:latest",
+  "State": "running",
+  "Status": "Up 32 hours (unhealthy)"
+ },
+ {
+  "Id": "0000000000000000000000000000000000000000000000000000000000000002",
+  "Names": [
+   "/nextcloud-db"
+  ],
+  "Image": "postgres:16",
+  "State": "running",
+  "Status": "Up 32 hours (unhealthy)"
+ },
+ {
+  "Id": "0000000000000000000000000000000000000000000000000000000000000003",
+  "Names": [
+   "/mariadb"
+  ],
+  "Image": "mariadb:11",
+  "State": "exited",
+  "Status": "Exited (137) 2 weeks ago"
+ },
+ {
+  "Id": "0000000000000000000000000000000000000000000000000000000000000004",
+  "Names": [
+   "/nextcloud"
+  ],
+  "Image": "nextcloud:stable",
+  "State": "running",
+  "Status": "Up 32 hours"
+ },
+ {
+  "Id": "0000000000000000000000000000000000000000000000000000000000000005",
+  "Names": [
+   "/pihole"
+  ],
+  "Image": "pihole/pihole:latest",
+  "State": "running",
+  "Status": "Up 32 hours"
+ },
+ {
+  "Id": "0000000000000000000000000000000000000000000000000000000000000006",
+  "Names": [
+   "/syncthing"
+  ],
+  "Image": "syncthing/syncthing:latest",
+  "State": "created",
+  "Status": "Created"
+ }
+]

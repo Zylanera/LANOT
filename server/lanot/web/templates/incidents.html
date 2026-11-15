@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import incident_item %}
+{% block content %}
+<div class="stack">
+  <section>
+    <h1>Incidents</h1>
+    <p class="lead">Everything LANOT noticed, newest first.</p>
+  </section>
+  {% if items %}
+  <ul class="timeline">
+    {% for i in items %}{{ incident_item(i) }}{% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No incidents so far.</p>
+  {% endif %}
+  {% if page > 1 or more %}
+  <nav class="pager" aria-label="Pages">
+    {% if page > 1 %}<a class="btn" href="/incidents?page={{ page - 1 }}">Newer incidents</a>{% endif %}
+    {% if more %}<a class="btn" href="/incidents?page={{ page + 1 }}">Older incidents</a>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

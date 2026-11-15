@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lanot-common"
+version = "0.1.0"
+description = "Shared protocol models for LANOT"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.6"]
+
+[tool.setuptools.packages.find]
+include = ["lanot_common", "lanot_common.*"]
